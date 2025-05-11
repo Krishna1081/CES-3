@@ -1,0 +1,78 @@
+# ==========================
+# 🔧 Node.js / Backend
+# ==========================
+node_modules/
+.env
+.env.local
+.env.*.local
+dist/
+build/
+coverage/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# pm2 logs
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# dotenv backup files
+.env.backup*
+
+# ==========================
+# 🎨 Frontend (React, Vue, etc.)
+# ==========================
+dist/
+dist-ssr/
+build/
+*.local
+*.cache
+.cache/
+.cache-loader/
+.vite/
+.next/
+out/
+.nuxt/
+.svelte-kit/
+.eslintcache
+
+# IDE-specific
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Misc
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.tgz
+*.gz
+
+# Optional lock files (only ignore if not in use)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ==========================
+# 🚫 OS-generated files
+# ==========================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ==========================
+# 🔒 Sensitive keys / uploads
+# ==========================
+*.pem
+*.crt
+*.key
+uploads/
