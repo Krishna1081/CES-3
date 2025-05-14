@@ -9,6 +9,7 @@ const sendEmailRouter = require('./routes/sendEmailRouter');
 const campaignRoutes = require('./routes/campaignRoutes');
 const smtpRoutes = require('./routes/smtpRoutes');
 const recipientRoutes = require('./routes/recipientRoutes');
+const uniboxRoutes = require('./routes/uniboxRoutes');
 
 
 require('./scheduler'); // Start the cron job
@@ -25,6 +26,7 @@ app.use(campaignRoutes);
 app.use(smtpRoutes);
 app.use(recipientRoutes);
 app.use(recipientRoutes);
+app.use(uniboxRoutes);
 
 
 

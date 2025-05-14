@@ -5,7 +5,7 @@ import CreatableSelect from 'react-select/creatable';
 
 
 export default function CampaignPage() {
-  const { register, handleSubmit, reset, setValue, control } = useForm();
+  const { register, handleSubmit, reset, setValue, control, formState: {errors} } = useForm();
   const [campaigns, setCampaigns] = useState([]);
   const [sending, setSending] = useState(false);
   const [smtpCon, setSmtpCon] = useState([]);
@@ -211,6 +211,7 @@ export default function CampaignPage() {
             type="text"
             className="w-full p-2 border rounded-md"
           />
+          {errors.subject && <p className="text-red-500 text-sm">{errors.subject.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-semibold">Body</label>
@@ -219,6 +220,7 @@ export default function CampaignPage() {
             className="w-full p-2 border rounded-md"
           />
         </div>
+        {errors.body && <p className="text-red-500 text-sm">{errors.body.message}</p>}
         <div>
           <label className="block text-sm font-semibold">Recipients</label>
             <Controller
@@ -234,6 +236,7 @@ export default function CampaignPage() {
                 />
                 )}
             />
+            {errors.recipients && <p className="text-red-500 text-sm">{errors.recipients.message}</p>}
           {/* <input
             {...register('recipients', { required: 'At least one recipient is required' })}
             type="text"
@@ -249,6 +252,7 @@ export default function CampaignPage() {
             type="datetime-local"
             className="w-full p-2 border rounded-md"
           />
+          {errors.sendAt && <p className="text-red-500 text-sm">{errors.sendAt.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-semibold">Timezone</label>
@@ -264,6 +268,7 @@ export default function CampaignPage() {
                 />
                 )}
             />
+             {errors.timezone && <p className="text-red-500 text-sm">{errors.timezone.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-semibold">SMTP Configurations</label>
@@ -286,6 +291,7 @@ export default function CampaignPage() {
             placeholder="SMTP config ids, e.g., 1,2"
             className="w-full p-2 border rounded-md"
           /> */}
+          {errors.smtpConfigs && <p className="text-red-500 text-sm">{errors.smtpConfigs.message}</p>}
         </div>
         <button
           type="submit"

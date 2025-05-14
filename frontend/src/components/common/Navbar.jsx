@@ -36,6 +36,7 @@ const Navbar = () => {
                 { path: '/campaigns', label: 'Campaigns' },
                 { path: '/upload-recipients', label: 'Upload Recipients' },
                 { path: '/recipients', label: 'Manage Recipients' },
+                { path: '/unibox', label: "Unibox"},
               ].map(({ path, label }) => (
                 <NavLink
                   key={path}

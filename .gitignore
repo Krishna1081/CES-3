@@ -76,3 +76,4 @@ Desktop.ini
 *.crt
 *.key
 uploads/
+recipient.csv
