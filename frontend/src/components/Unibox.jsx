@@ -12,13 +12,14 @@ const Unibox = () => {
   const [replyBoxIndex, setReplyBoxIndex] = useState(null);
 //   const [replyContent, setReplyContent] = useState('');
   const [attachments, setAttachments] = useState({});
+   const hostname = import.meta.env.VITE_API_HOSTNAME;
 
   const handleFetch = async () => {
     setLoading(true);
     setError('');
     setReplies([]);
     try {
-      const response = await axios.get(`http://localhost:5000/api/unibox/${email}`);
+      const response = await axios.get(`${hostname}api/unibox/${email}`);
       setReplies(response.data);
       console.log(response['data']);
     } catch (err) {
@@ -47,7 +48,7 @@ const Unibox = () => {
     }
 
     try {
-      const res = await axios.post('http://localhost:5000/api/unibox/reply', formData, {
+      const res = await axios.post(`${hostname}api/unibox/reply`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data' 
         }

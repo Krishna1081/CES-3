@@ -12,10 +12,11 @@ export default function CampaignPage() {
   const [recipientOptions, setRecipientOptions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const hostname = import.meta.env.VITE_API_HOSTNAME;
 
     const fetchRecipients = async () => {
     try {
-        const response = await fetch('http://localhost:5000/api/recipient/getAllRecipientsEmails');
+        const response = await fetch(`${hostname}api/recipient/getAllRecipientsEmails`);
         const data = await response.json();
         let formatData = []
         for(let i = 0; i < data.emails.length; i++){
@@ -32,13 +33,13 @@ export default function CampaignPage() {
 
 
   const fetchCampaigns = async () => {
-    const response = await fetch('http://localhost:5000/api/campaigns/getAll');
+    const response = await fetch(`${hostname}api/campaigns/getAll`);
     const data = await response.json();
     setCampaigns(data);
   };
   const fetchSmtp = async () => {
     try {
-        const response = await fetch('http://localhost:5000/api/smtp');
+        const response = await fetch(`${hostname}api/smtp`);
         const data = await response.json();
         if (!data) console.log("Data not found")
         
@@ -65,7 +66,7 @@ export default function CampaignPage() {
             smtpConfigs: data.smtpConfigs.map(s => s.value),
             timezone: data.timezone.value,
         }
-      const response = await fetch('http://localhost:5000/api/campaigns', {
+      const response = await fetch(`${hostname}api/campaigns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -92,7 +93,7 @@ export default function CampaignPage() {
 
   const handleSendCampaign = async (id) => {
     setSending(true);
-    const response = await fetch(`http://localhost:5000/api/campaigns/${id}/send`, {
+    const response = await fetch(`${hostname}api/campaigns/${id}/send`, {
       method: 'POST',
     });
     const result = await response.json();
@@ -113,7 +114,7 @@ export default function CampaignPage() {
 
   const handleSearchCampaigns = async () => {
   try {
-    const response = await fetch(`http://localhost:5000/api/campaigns/search?subject=${searchTerm}`);
+    const response = await fetch(`${hostname}api/campaigns/search?subject=${searchTerm}`);
     const data = await response.json();
     if (Array.isArray(data)) {
       setCampaigns(data);
@@ -132,7 +133,7 @@ export default function CampaignPage() {
     if (!window.confirm('Are you sure you want to delete this campaign?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/campaigns/delete/${id}`, {
+      const response = await fetch(`${hostname}api/campaigns/delete/${id}`, {
         method: 'DELETE',
       });
       if (response.ok) {
@@ -169,7 +170,7 @@ export default function CampaignPage() {
         smtpConfigs: data.smtpConfigs.map(s => s.value),
         timezone: data.timezone.value,
       };
-      const response = await fetch(`http://localhost:5000/api/campaigns/update/${editingCampaign._id}`, {
+      const response = await fetch(`${hostname}api/campaigns/update/${editingCampaign._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

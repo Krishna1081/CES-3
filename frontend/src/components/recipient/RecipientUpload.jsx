@@ -104,6 +104,7 @@ const RecipientUpload = () => {
   const [dragOver, setDragOver] = useState(false);
   const validRowCount = parsedData.filter(row => row._rowStatus === 'valid').length;
   const [inferredNameCount, setInferredNameCount] = useState(0);
+  const hostname = import.meta.env.VITE_API_HOSTNAME;
 
 
   const parseCSV = (file) => {
@@ -166,7 +167,7 @@ const RecipientUpload = () => {
     const formData = new FormData();
     formData.append('file', csvFile);
 
-    fetch('http://localhost:5000/api/recipient/upload-csv', {
+    fetch(`${hostname}api/recipient/upload-csv`, {
       method: 'POST',
       body: formData
     })

@@ -4,12 +4,13 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const hostname = import.meta.env.VITE_API_HOSTNAME;
 
   const isActive = (path) => location.pathname === path;
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/auth/logout', {
+      const response = await fetch(`${hostname}api/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

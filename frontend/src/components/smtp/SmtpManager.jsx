@@ -5,12 +5,13 @@ export default function SmtpManager() {
   const { register, handleSubmit, reset, setValue } = useForm();
   const [smtpConfigs, setSmtpConfigs] = useState([]);
   const [editId, setEditId] = useState(null);
+  const hostname = import.meta.env.VITE_API_HOSTNAME;
 
   const smtpRegex = /^([a-z0-9-]+\.)*(smtp\.gmail\.com|smtp\.outlook\.com|smtp\.yahoo\.com|smtpout\.secureserver\.net|mail\.zoho\.com|smtp\.office365\.com)$/i;
   const smtpEmails = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
   const fetchConfigs = async () => {
-    const res = await fetch('http://localhost:5000/api/smtp');
+    const res = await fetch(`${hostname}api/smtp`);
     const data = await res.json();
     setSmtpConfigs(data);
   };
@@ -22,8 +23,8 @@ export default function SmtpManager() {
   const onSubmit = async (formData) => {
     const method = editId ? 'PUT' : 'POST';
     const url = editId
-      ? `http://localhost:5000/api/smtp/${editId}`
-      : 'http://localhost:5000/api/smtp';
+      ? `${hostname}api/smtp/${editId}`
+      : `${hostname}api/smtp`;
 
     const res = await fetch(url, {
       method,
@@ -41,7 +42,7 @@ export default function SmtpManager() {
   };
 
   const handleDelete = async (id) => {
-    await fetch(`http://localhost:5000/api/smtp/${id}`, {
+    await fetch(`${hostname}api/smtp/${id}`, {
       method: 'DELETE',
     });
     fetchConfigs();
