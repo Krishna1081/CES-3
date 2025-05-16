@@ -1,14 +1,8 @@
-const mongoose = require('mongoose');
-require('dotenv').config();
+// db.js
+const AWS = require('aws-sdk');
+require('dotenv').config()
+AWS.config.update({ region: process.env.AWS_REGION }); // e.g. 'us-east-1'
 
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`Error: ${error.message}`);
-    process.exit(1);
-  }
-};
+const dynamoDB = new AWS.DynamoDB.DocumentClient();
 
-module.exports = connectDB;
+module.exports = { dynamoDB };

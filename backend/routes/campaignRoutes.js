@@ -20,4 +20,7 @@ router.put('/api/campaigns/update/:id', campaignController.updateCampaign);
 // DELETE /api/campaigns/delete/:id - Delete a Campaign
 router.delete('/api/campaigns/delete/:id', campaignController.deleteCampaign);
 
+// router.get('/api/campaigns/run-due', campaignController.runDueCampaignsNow);
+
+
 module.exports = router;

@@ -12,9 +12,34 @@ export default function CampaignPage() {
   const [recipientOptions, setRecipientOptions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const [timezoneOptions, setTimezoneOptions] = useState([
+    {value: "local", label: "Local Browser Timezone"},
+    {value: "America/New_York", label: "America/New_York (Eastern)"},
+    {value: "America/Chicago", label: "America/Chicago (Central)"},
+    {value: "America/Denver", label: "America/Denver (Mountain)"},
+    {value: "America/Los_Angeles", label: "America/Los_Angeles (Pacific)"}
+  ]);
   const hostname = import.meta.env.VITE_API_HOSTNAME;
 
-    const fetchRecipients = async () => {
+  // Detect local timezone and add it to options on component mount
+  useEffect(() => {
+    try {
+      const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (localTimezone) {
+        // Update the "Local Browser Timezone" label to include the actual timezone
+        const updatedOptions = timezoneOptions.map(option => 
+          option.value === "local" 
+            ? { value: localTimezone, label: `Local Browser Timezone (${localTimezone})` }
+            : option
+        );
+        setTimezoneOptions(updatedOptions);
+      }
+    } catch (error) {
+      console.error("Error detecting local timezone:", error);
+    }
+  }, []);
+
+  const fetchRecipients = async () => {
     try {
         const response = await fetch(`${hostname}api/recipient/getAllRecipientsEmails`);
         const data = await response.json();
@@ -29,33 +54,29 @@ export default function CampaignPage() {
     } catch (err) {
         console.error("Failed to fetch recipients:", err);
     }
-    };
-
+  };
 
   const fetchCampaigns = async () => {
     const response = await fetch(`${hostname}api/campaigns/getAll`);
     const data = await response.json();
     setCampaigns(data);
   };
+  
   const fetchSmtp = async () => {
     try {
         const response = await fetch(`${hostname}api/smtp`);
         const data = await response.json();
         if (!data) console.log("Data not found")
-        
-        let formatData = [];
-        for(let i = 0; i < data.length; i++){
-            formatData.push({
-                value: data[i]._id, 
-                label: `${data[i].email}, ${data[i].port} ${data[i].host}`
-            })
-        }
+        console.log(data);
+        let formatData = data.map(smtp => ({
+          value: smtp.id,
+          label: `${smtp.email}, ${smtp.port} ${smtp.host}`
+        }));
         setSmtpCon(formatData);
     }
     catch (e) {
         console.log(e);
     }
-
   }
 
   const createCampaign = async (data) => {
@@ -66,10 +87,10 @@ export default function CampaignPage() {
             smtpConfigs: data.smtpConfigs.map(s => s.value),
             timezone: data.timezone.value,
         }
-      const response = await fetch(`${hostname}api/campaigns`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        const response = await fetch(`${hostname}api/campaigns`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
       });
       const result = await response.json();
       if (response.ok) {
@@ -105,29 +126,22 @@ export default function CampaignPage() {
     setSending(false);
   };
 
-  const timezoneOptions = [
-    {value: "America/New_York", label: "America/New_York (Eastern)"},
-    {value: "America/Chicago", label: "America/Chicago (Central)"},
-    {value: "America/Denver", label: "America/Denver (Mountain)"},
-    {value: "America/Los_Angeles", label: "America/Los_Angeles (Pacific)"}
-  ]
-
   const handleSearchCampaigns = async () => {
-  try {
-    const response = await fetch(`${hostname}api/campaigns/search?subject=${searchTerm}`);
-    const data = await response.json();
-    if (Array.isArray(data)) {
-      setCampaigns(data);
-    } else {
-      console.error("Expected array, got:", data);
-      setCampaigns([]); // fallback to avoid map crash
+    try {
+      const response = await fetch(`${hostname}api/campaigns/search?subject=${searchTerm}`);
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setCampaigns(data);
+      } else {
+        console.error("Expected array, got:", data);
+        setCampaigns([]); // fallback to avoid map crash
+      }
+    } catch (err) {
+      console.error("Search failed:", err);
+      setCampaigns([]); // avoid breaking the map()
+      alert("Search failed");
     }
-  } catch (err) {
-    console.error("Search failed:", err);
-    setCampaigns([]); // avoid breaking the map()
-    alert("Search failed");
-  }
-};
+  };
 
   const handleDeleteCampaign = async (id) => {
     if (!window.confirm('Are you sure you want to delete this campaign?')) return;
@@ -170,7 +184,7 @@ export default function CampaignPage() {
         smtpConfigs: data.smtpConfigs.map(s => s.value),
         timezone: data.timezone.value,
       };
-      const response = await fetch(`${hostname}api/campaigns/update/${editingCampaign._id}`, {
+      const response = await fetch(`${hostname}api/campaigns/update/${editingCampaign.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -188,8 +202,6 @@ export default function CampaignPage() {
       alert('Update failed');
     }
   };
-
-  
 
   useEffect(() => {
     fetchRecipients();
@@ -238,12 +250,6 @@ export default function CampaignPage() {
                 )}
             />
             {errors.recipients && <p className="text-red-500 text-sm">{errors.recipients.message}</p>}
-          {/* <input
-            {...register('recipients', { required: 'At least one recipient is required' })}
-            type="text"
-            placeholder="email@example.com, another@example.com"
-            className="w-full p-2 border rounded-md"
-          /> */}
         </div>
         <div>
           <label className="block text-sm font-semibold">Send At</label>
@@ -266,6 +272,7 @@ export default function CampaignPage() {
                     {...field}
                     options={timezoneOptions}
                     onChange={(selected) => field.onChange(selected)}
+                    placeholder="Select timezone..."
                 />
                 )}
             />
@@ -286,12 +293,6 @@ export default function CampaignPage() {
             />
             )}
         />
-          {/* <input
-            {...register('smtpConfigs', { required: 'SMTP configurations are required' })}
-            type="text"
-            placeholder="SMTP config ids, e.g., 1,2"
-            className="w-full p-2 border rounded-md"
-          /> */}
           {errors.smtpConfigs && <p className="text-red-500 text-sm">{errors.smtpConfigs.message}</p>}
         </div>
         <button
@@ -313,8 +314,6 @@ export default function CampaignPage() {
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value); 
-            // future use or something
-            // handleSearchCampaigns();
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleSearchCampaigns();
@@ -344,13 +343,13 @@ export default function CampaignPage() {
             </thead>
             <tbody>
               {campaigns.map((campaign) => (
-                <tr key={campaign._id} className="border-t">
+                <tr key={campaign.id} className="border-t">
                   <td className="px-4 py-2">{campaign.subject}</td>
                   <td className="px-4 py-2">{campaign.recipients.join(', ')}</td>
                   <td className="px-4 py-2">{campaign.status}</td>
                   <td className="px-4 py-2">
                     <button
-                      onClick={() => handleSendCampaign(campaign._id)}
+                      onClick={() => handleSendCampaign(campaign.id)}
                       disabled={sending}
                       className="bg-green-500 text-white px-2 py-1 rounded mr-2 hover:bg-green-600"
                     >
@@ -363,7 +362,7 @@ export default function CampaignPage() {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDeleteCampaign(campaign._id)}
+                      onClick={() => handleDeleteCampaign(campaign.id)}
                       className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
                     >
                       Delete

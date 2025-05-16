@@ -61,90 +61,183 @@
 //   }
 // });
 
+// const cron = require('node-cron');
+// const { Campaign } = require('./schema');
+// const { SmtpConfig } = require('./schema');
+// const nodemailer = require('nodemailer');
+// const { DateTime } = require('luxon');
+
+// cron.schedule('* * * * *', async () => {
+//   console.log(`[${new Date().toISOString()}] Checking for scheduled campaigns...`);
+
+//   // Find scheduled campaigns whose sendAt is past
+//   const campaigns = await Campaign.find({
+//     status: 'scheduled',
+//     sendAt: { $lte: new Date() },
+//   }).populate('smtpConfigs');
+
+//   for (const campaign of campaigns) {
+//     const { subject, body, recipients, smtpConfigs, sendIntervalMinutes = 10 } = campaign;
+
+//     if (!recipients.length || !smtpConfigs.length) continue;
+
+//     // Check if we should send the next email
+//     const now = DateTime.local();
+//     const lastSent = campaign.lastSentAt ? DateTime.fromJSDate(campaign.lastSentAt) : null;
+//     const nextIndex = campaign.nextRecipientIndex || 0;
+
+//     // If done sending all, mark as sent
+//     if (nextIndex >= recipients.length) {
+//       campaign.status = 'sent';
+//       await campaign.save();
+//       console.log(`✅ Campaign "${campaign.subject}" finished sending to all recipients.`);
+//       continue;
+//     }
+
+//     // If this is the first send or enough time has passed
+//     if (!lastSent || now.diff(lastSent, 'minutes').minutes >= sendIntervalMinutes) {
+//       const recipient = recipients[nextIndex];
+//       const smtp = smtpConfigs[nextIndex % smtpConfigs.length];
+
+//       const transporter = nodemailer.createTransport({
+//         host: smtp.host,
+//         port: smtp.port,
+//         secure: smtp.port === 465,
+//         auth: {
+//           user: smtp.email,
+//           pass: smtp.password,
+//         },
+//       });
+
+//       try {
+//         await transporter.sendMail({
+//           from: smtp.email,
+//           to: recipient,
+//           subject,
+//           html: body,
+//         });
+
+//         console.log(`📤 Sent email to ${recipient} using ${smtp.email}`);
+
+//         campaign.lastSentAt = new Date();
+//         campaign.nextRecipientIndex = nextIndex + 1;
+//         await campaign.save();
+
+//         // If this was the last recipient, mark as sent
+//         if (campaign.nextRecipientIndex >= recipients.length) {
+//           campaign.status = 'sent';
+//           await campaign.save();
+//           console.log(`✅ Campaign "${campaign.subject}" fully sent.`);
+//         }
+
+//       } catch (err) {
+//         console.error(`❌ Failed to send email to ${recipient}:`, err.message);
+//       }
+//     }
+//   }
+// });
+
+// // Daily quota reset
+// cron.schedule('0 0 * * *', async () => {
+//   console.log(`[${new Date().toISOString()}] 🔄 Resetting SMTP quotas`);
+//   const smtps = await SmtpConfig.find();
+
+//   for (const smtp of smtps) {
+//     smtp.sentCount = 0;
+//     smtp.lastReset = new Date();
+//     await smtp.save();
+//   }
+// });
+
 const cron = require('node-cron');
-const { Campaign } = require('./schema');
-const { SmtpConfig } = require('./schema');
 const nodemailer = require('nodemailer');
 const { DateTime } = require('luxon');
+const { dynamoDB } = require('./db');
+const { sendCampaignById } = require('./controllers/campaignController'); // 👈 Adjust path if needed
 
+
+const TABLE_NAME = 'MailSpace'; // Replace with your actual DynamoDB table name
+
+// Scheduled Campaign Sender - Every minute
 cron.schedule('* * * * *', async () => {
-  console.log(`[${new Date().toISOString()}] Checking for scheduled campaigns...`);
+  console.log(`[${new Date().toISOString()}] 🔍 Checking for due campaigns`);
 
-  // Find scheduled campaigns whose sendAt is past
-  const campaigns = await Campaign.find({
-    status: 'scheduled',
-    sendAt: { $lte: new Date() },
-  }).populate('smtpConfigs');
+  const scanParams = {
+    TableName: TABLE_NAME,
+    FilterExpression: '#type = :type AND #status = :status',
+    ExpressionAttributeNames: {
+      '#type': 'entityType',
+      '#status': 'status',
+    },
+    ExpressionAttributeValues: {
+      ':type': 'campaign',
+      ':status': 'scheduled',
+    },
+  };
 
-  for (const campaign of campaigns) {
-    const { subject, body, recipients, smtpConfigs, sendIntervalMinutes = 10 } = campaign;
+  try {
+    const { Items = [] } = await dynamoDB.scan(scanParams).promise();
 
-    if (!recipients.length || !smtpConfigs.length) continue;
+    for (const campaign of Items) {
+      const { id, sendAt, timezone = 'UTC' } = campaign;
+      const now = DateTime.now().setZone(timezone);
+      const sendTime = DateTime.fromISO(sendAt, { zone: timezone });
 
-    // Check if we should send the next email
-    const now = DateTime.local();
-    const lastSent = campaign.lastSentAt ? DateTime.fromJSDate(campaign.lastSentAt) : null;
-    const nextIndex = campaign.nextRecipientIndex || 0;
+      if (now >= sendTime) {
+        console.log(`⏰ Triggering campaign ID ${id}`);
+        await sendCampaignById(id);
 
-    // If done sending all, mark as sent
-    if (nextIndex >= recipients.length) {
-      campaign.status = 'sent';
-      await campaign.save();
-      console.log(`✅ Campaign "${campaign.subject}" finished sending to all recipients.`);
-      continue;
-    }
-
-    // If this is the first send or enough time has passed
-    if (!lastSent || now.diff(lastSent, 'minutes').minutes >= sendIntervalMinutes) {
-      const recipient = recipients[nextIndex];
-      const smtp = smtpConfigs[nextIndex % smtpConfigs.length];
-
-      const transporter = nodemailer.createTransport({
-        host: smtp.host,
-        port: smtp.port,
-        secure: smtp.port === 465,
-        auth: {
-          user: smtp.email,
-          pass: smtp.password,
-        },
-      });
-
-      try {
-        await transporter.sendMail({
-          from: smtp.email,
-          to: recipient,
-          subject,
-          html: body,
-        });
-
-        console.log(`📤 Sent email to ${recipient} using ${smtp.email}`);
-
-        campaign.lastSentAt = new Date();
-        campaign.nextRecipientIndex = nextIndex + 1;
-        await campaign.save();
-
-        // If this was the last recipient, mark as sent
-        if (campaign.nextRecipientIndex >= recipients.length) {
-          campaign.status = 'sent';
-          await campaign.save();
-          console.log(`✅ Campaign "${campaign.subject}" fully sent.`);
-        }
-
-      } catch (err) {
-        console.error(`❌ Failed to send email to ${recipient}:`, err.message);
+        // ✅ Mark campaign as sent
+        await dynamoDB.update({
+          TableName: TABLE_NAME,
+          Key: { PK: `CAMPAIGN#${id}`, SK: 'METADATA' },
+          UpdateExpression: 'SET #status = :sent, lastSentAt = :now',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+          },
+          ExpressionAttributeValues: {
+            ':sent': 'sent',
+            ':now': new Date().toISOString(),
+          },
+        }).promise();
       }
     }
+  } catch (err) {
+    console.error('❌ Error checking campaigns:', err.message);
   }
 });
 
-// Daily quota reset
+// SMTP Quota Reset - Daily at midnight
 cron.schedule('0 0 * * *', async () => {
   console.log(`[${new Date().toISOString()}] 🔄 Resetting SMTP quotas`);
-  const smtps = await SmtpConfig.find();
 
-  for (const smtp of smtps) {
-    smtp.sentCount = 0;
-    smtp.lastReset = new Date();
-    await smtp.save();
+  const smtpScanParams = {
+    TableName: TABLE_NAME,
+    FilterExpression: '#type = :smtpType',
+    ExpressionAttributeNames: {
+      '#type': 'type',
+    },
+    ExpressionAttributeValues: {
+      ':smtpType': 'SmtpConfig',
+    },
+  };
+
+  try {
+    const { Items: smtps = [] } = await dynamoDB.scan(smtpScanParams).promise();
+
+    for (const smtp of smtps) {
+      await dynamoDB.update({
+        TableName: TABLE_NAME,
+        Key: { PK: `SMTP#${smtp.id}`, SK: 'META' },
+        UpdateExpression: 'SET sentCount = :zero, lastReset = :now',
+        ExpressionAttributeValues: {
+          ':zero': 0,
+          ':now': new Date().toISOString(),
+        },
+      }).promise();
+      console.log(`✅ Reset quota for SMTP ${smtp.id}`);
+    }
+  } catch (error) {
+    console.error(`❌ Error resetting SMTP quotas: ${error.message}`);
   }
 });

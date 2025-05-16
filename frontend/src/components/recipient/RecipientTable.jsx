@@ -17,7 +17,7 @@ const RecipientTable = ({ recipients, onEdit, onDelete }) => {
             <td className="p-2">{r.email}</td>
             <td className="p-2">
               <button onClick={() => onEdit(r)} className="text-blue-500 mr-2">Edit</button>
-              <button onClick={() => onDelete(r._id)} className="text-red-500">Delete</button>
+              <button onClick={() => onDelete(r.id)} className="text-red-500">Delete</button>
             </td>
           </tr>
         ))}

@@ -15,7 +15,7 @@ const RecipientManager = () => {
 
   const handleSubmit = async (data) => {
     if (editing) {
-      await axios.put(`${hostname}api/recipient/updateRecipient/${editing._id}`, data);
+      await axios.put(`${hostname}api/recipient/updateRecipient/${editing.id}`, data);
     } else {
       await axios.post(`${hostname}api/recipient/createRecipient`, data);
     }

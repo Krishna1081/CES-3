@@ -1,55 +1,34 @@
-const imaps = require('imap-simple');
-const { simpleParser } = require('mailparser');
+const AWS = require('aws-sdk');
+const dynamoDB = new AWS.DynamoDB.DocumentClient();
+const TABLE_NAME = 'MailSpace';
 
-exports.fetchReplies = async ({ email, password, host, port }) => {
-  const config = {
-    imap: {
-      user: email,
-      password,
-      host,
-      port,
-      tls: true,
-      authTimeout: 10000,
-    },
-  };
+exports.fetchReplies = async (email) => {
+  try {
+    const params = {
+      TableName: TABLE_NAME,
+      KeyConditionExpression: 'PK = :pk and begins_with(SK, :sk)',
+      ExpressionAttributeValues: {
+        ':pk': `REPLY#${email}`,
+        ':sk': 'TIMESTAMP#',
+      },
+    };
 
-  const connection = await imaps.connect(config);
-  await connection.openBox('INBOX');
+    const data = await dynamoDB.query(params).promise();
 
-  const searchCriteria = ['ALL'];
+    const replies = (data.Items || []).map(item => ({
+      from: item.from || '',
+      subject: item.subject || '',
+      date: item.date || '',
+      body: item.body || '',
+      isReply: !!item.inReplyTo,
+    }));
 
-  const fetchOptions = {
-    bodies: [''],
-    markSeen: false,
-  };
+    // Optional: Sort by latest
+    replies.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  const messages = await connection.search(searchCriteria, fetchOptions);
-
-  const replies = [];
-
-  for (const item of messages) {
-    const allParts = item.parts.find(part => part.which === '');
-
-    if (!allParts || !allParts.body) continue;
-
-    try {
-      const parsed = await simpleParser(allParts.body);
-
-      replies.push({
-        from: parsed.from?.text || '',
-        subject: parsed.subject || '',
-        date: parsed.date || '',
-        body: parsed.text || '',
-        isReply: !!parsed.inReplyTo,
-      });
-    } catch (err) {
-      console.error('Failed to parse message:', err.message);
-    }
+    return replies;
+  } catch (err) {
+    console.error('🛑 fetchRepliesFromDB error:', err);
+    throw new Error('Failed to fetch replies from DynamoDB');
   }
-
-  // Sort replies by date descending (most recent first)
-  replies.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  await connection.end();
-  return replies;
 };

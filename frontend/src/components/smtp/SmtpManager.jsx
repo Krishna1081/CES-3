@@ -49,9 +49,9 @@ export default function SmtpManager() {
   };
 
   const handleEdit = (config) => {
-    setEditId(config._id);
+    setEditId(config.id);
     for (let key in config) {
-      if (key !== '_id' && key !== '__v') {
+      if (key !== 'id' && key !== '__v' && key !== 'sentCount') {
         setValue(key, config[key]);
       }
     }
@@ -129,7 +129,7 @@ export default function SmtpManager() {
           </thead>
           <tbody>
             {smtpConfigs.map((cfg) => (
-              <tr key={cfg._id} className="border-t hover:bg-gray-50">
+              <tr key={cfg.id} className="border-t hover:bg-gray-50">
                 <td className="p-3">{cfg.host}</td>
                 <td className="p-3">{cfg.port}</td>
                 <td className="p-3">{cfg.email}</td>
@@ -143,7 +143,7 @@ export default function SmtpManager() {
                     Edit
                   </button>
                   <button
-                    onClick={() => handleDelete(cfg._id)}
+                    onClick={() => handleDelete(cfg.id)}
                     className="bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700"
                   >
                     Delete
