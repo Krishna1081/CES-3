@@ -3,8 +3,9 @@ const nodemailer = require("nodemailer");
 const { DateTime } = require("luxon");
 
 const dynamoDB = new AWS.DynamoDB.DocumentClient();
-const TABLE_NAME = "MailSpace"; // Single table for campaigns and SMTP
+const TABLE_NAME = process.env.DB_NAME; // Single table for campaigns and SMTP
 const hostname = process.env.HOSTNAME;
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function resetDailyQuotaIfNeeded(smtp) {
   if (!smtp) return; // safety check
@@ -89,16 +90,16 @@ function parseSpintax(str) {
 
 function replaceTemplateVars(text, recipient) {
   return text
-    .replace(/{{name}}/g, recipient.name || "")
+    .replace(/{{firstName}}/g, recipient.name || "")
     .replace(/{{email}}/g, recipient.email || "")
     .replace(
       /{{unsubscribeUrl}}/g,
-      `${hostname}/api/suppression/${recipient.email}`
+      `http://localhost:5173/unsubscribe?email=${recipient.email}`
     );
 }
 
 exports.sendCampaignById = async function (id) {
-  console.log(`📦 Campaign ID: ${id}`);
+  console.log(`📦 [Worker] Campaign ID: ${id}`);
 
   const campaignData = await dynamoDB
     .get({
@@ -113,15 +114,21 @@ exports.sendCampaignById = async function (id) {
     !campaign.recipients?.length ||
     !campaign.smtpConfigs?.length
   ) {
-    console.log("❌ Campaign data is incomplete or invalid.");
-    return;
+    console.log("❌ [Worker] Campaign data is incomplete or invalid.");
+    return {
+      status: "error",
+      message: "Campaign data is incomplete or invalid",
+    };
   }
 
-  console.log(`📧 Recipients: ${campaign.recipients.length}`);
-  console.log(`📨 SMTPs: ${campaign.smtpConfigs.length}`);
+  console.log(`📧 [Worker] Recipients: ${campaign.recipients.length}`);
+  console.log(`📨 [Worker] SMTPs: ${campaign.smtpConfigs.length}`);
 
-  for (let i = 0; i < campaign.recipients.length; i++) {
-    const recipientEmail = campaign.recipients[i];
+  const results = [];
+
+  const uniqueRecipients = [...new Set(campaign.recipients)];
+  for (let i = 0; i < uniqueRecipients.length; i++) {
+    const recipientEmail = uniqueRecipients[i];
     const recipientData = await dynamoDB
       .get({
         TableName: TABLE_NAME,
@@ -134,22 +141,49 @@ exports.sendCampaignById = async function (id) {
 
     const recipient = recipientData.Item;
     if (!recipient) {
-      console.log(`❌ No profile found for ${recipientEmail}`);
-      return;
+      console.log(`❌ [Worker] No profile found for ${recipientEmail}`);
+      results.push({
+        status: "error",
+        recipient: recipientEmail,
+        reason: "No profile found",
+      });
+      continue;
     }
+
     let sent = false;
     let attempts = 0;
 
     while (!sent && attempts < 3) {
       const smtpEmail = campaign.smtpConfigs[i % campaign.smtpConfigs.length];
-      console.log(`🔍 Fetching SMTP config for: ${smtpEmail}`);
+      console.log(`🔍 [SMTP] Fetching SMTP config for: ${smtpEmail}`);
 
-      // 📌 Replace this with a GSI query in production
+      const parsedSubject = replaceTemplateVars(campaign.subject, recipient);
+      const parsedBody = replaceTemplateVars(campaign.body, recipient);
+      const subject = parseSpintax(parsedSubject);
+      const finalhtml = parseSpintax(parsedBody);
+
+      // Check for unparsed placeholders
+      const unparsedPlaceholderRegex = /{{[^{}]+}}|\{[^{}]+\}/;
+      if (
+        unparsedPlaceholderRegex.test(subject) ||
+        unparsedPlaceholderRegex.test(finalhtml)
+      ) {
+        console.warn(
+          `⚠️ [Worker] Unparsed placeholders detected for recipient ${recipientEmail}. Skipping send.`
+        );
+        results.push({
+          status: "error",
+          recipient: recipientEmail,
+          reason: "Unparsed placeholders detected",
+        });
+        break; // exit while loop, do not retry
+      }
+
       const smtpData = await dynamoDB
         .get({
           TableName: TABLE_NAME,
           Key: {
-            PK: `SMTP#${smtpEmail}`, // smtpEmail here is actually the ID
+            PK: `SMTP#${smtpEmail}`,
             SK: "META",
           },
         })
@@ -157,13 +191,23 @@ exports.sendCampaignById = async function (id) {
 
       const smtp = smtpData.Item;
       if (!smtp) {
-        console.log(`❌ SMTP config not found for ${smtpEmail}`);
+        console.log(`❌ [SMTP] Config not found for ${smtpEmail}`);
+        results.push({
+          status: "error",
+          recipient: recipientEmail,
+          reason: "SMTP config not found",
+        });
         break;
       }
 
       await resetDailyQuotaIfNeeded(smtp);
       if (smtp.sentCount >= smtp.dailyLimit) {
-        console.log(`⚠️ SMTP ${smtp.email} has hit its daily limit.`);
+        console.log(`⚠️ [SMTP] ${smtp.email} has hit its daily limit.`);
+        results.push({
+          status: "error",
+          recipient: recipientEmail,
+          reason: "SMTP daily limit reached",
+        });
         break;
       }
 
@@ -181,17 +225,15 @@ exports.sendCampaignById = async function (id) {
         await transporter.sendMail({
           from: smtp.email,
           to: recipient.email,
-          subject: parseSpintax(
-            replaceTemplateVars(campaign.subject, recipient)
-          ),
-          html: parseSpintax(replaceTemplateVars(campaign.body, recipient)),
+          subject,
+          html: finalhtml,
         });
 
         smtp.sentCount++;
         await dynamoDB
           .update({
             TableName: TABLE_NAME,
-            Key: { PK: `SMTP#${smtp.id}`, SK: "META" },
+            Key: { PK: `SMTP#${smtpEmail}`, SK: "META" }, // changed from smtp.id
             UpdateExpression: "set sentCount = :s",
             ExpressionAttributeValues: {
               ":s": smtp.sentCount,
@@ -200,12 +242,23 @@ exports.sendCampaignById = async function (id) {
           .promise();
 
         sent = true;
-        console.log(`✅ Sent to ${recipient.email} using ${smtp.email}`);
+        console.log(`✅ [SMTP] Sent to ${recipient.email} using ${smtp.email}`);
+        results.push({
+          status: "success",
+          recipient: recipient.email,
+          smtp: smtp.email,
+        });
+
+        // ⏳ 5-minute delay before next email
+        if (i < uniqueRecipients.length - 1) {
+          console.log("⏳ Waiting 5 minutes before sending next email...");
+          await delay(5 * 60 * 1000);
+        }
       } catch (err) {
         console.error(
-          `❌ Attempt ${attempts + 1} failed for ${recipient.email} using ${
-            smtp.email
-          }:`,
+          `❌ [SMTP] Attempt ${attempts + 1} failed for ${
+            recipient.email
+          } using ${smtp.email}:`,
           err.message
         );
         attempts++;
@@ -213,13 +266,18 @@ exports.sendCampaignById = async function (id) {
       }
     }
   }
+
+  return results;
 };
 
 exports.sendCampaign = async (req, res) => {
   try {
     const { id } = req.params;
-    await exports.sendCampaignById(id);
-    res.status(200).json({ message: "Campaign sent" });
+    const results = await exports.sendCampaignById(id);
+    res.status(200).json({
+      message: "Campaign processed",
+      results,
+    });
   } catch (err) {
     console.error("Send campaign error:", err);
     res.status(500).json({ error: "Failed to send campaign" });

@@ -106,18 +106,18 @@
 //   }
 // };
 
-const AWS = require('aws-sdk');
-const { Readable } = require('stream');
-const csv = require('csv-parser');
-const { v4: uuidv4 } = require('uuid');
+const AWS = require("aws-sdk");
+const { Readable } = require("stream");
+const csv = require("csv-parser");
+const { v4: uuidv4 } = require("uuid");
 
 const dynamoDB = new AWS.DynamoDB.DocumentClient();
-const TABLE_NAME = 'MailSpace'; // Replace with your table name
+const TABLE_NAME = process.env.DB_NAME; // Replace with your table name
 
 // Upload CSV of recipients
 exports.uploadRecipientsCSV = async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+    return res.status(400).json({ error: "No file uploaded" });
   }
 
   const results = [];
@@ -126,78 +126,82 @@ exports.uploadRecipientsCSV = async (req, res) => {
 
   stream
     .pipe(csv())
-    .on('data', (data) => {
+    .on("data", (data) => {
       const email = data.email?.trim().toLowerCase(); // normalize
       if (email && /^\S+@\S+\.\S+$/.test(email) && !seenEmails.has(email)) {
         seenEmails.add(email);
         results.push({
           PK: `RECIPIENT#${email}`, // normalized PK
-          SK: 'PROFILE',
+          SK: "PROFILE",
           email,
-          name: data.name || '',
+          name: data.name || "",
           id: uuidv4(),
         });
       }
     })
-    .on('end', async () => {
+    .on("end", async () => {
       try {
         let insertedCount = 0;
 
-        const putPromises = results.map(item =>
-          dynamoDB.put({
-            TableName: TABLE_NAME,
-            Item: item,
-            ConditionExpression: 'attribute_not_exists(PK)', // skip if exists
-          }).promise()
+        const putPromises = results.map((item) =>
+          dynamoDB
+            .put({
+              TableName: TABLE_NAME,
+              Item: item,
+              ConditionExpression: "attribute_not_exists(PK)", // skip if exists
+            })
+            .promise()
             .then(() => insertedCount++)
-            .catch(err => {
-              if (err.code !== 'ConditionalCheckFailedException') throw err;
+            .catch((err) => {
+              if (err.code !== "ConditionalCheckFailedException") throw err;
             })
         );
 
         await Promise.all(putPromises);
 
         res.status(200).json({
-          message: 'Recipients uploaded successfully',
+          message: "Recipients uploaded successfully",
           processed: results.length,
           inserted: insertedCount,
-          skippedDuplicates: results.length - insertedCount
+          skippedDuplicates: results.length - insertedCount,
         });
-
       } catch (error) {
-        console.error('Upload Error:', error);
-        res.status(500).json({ error: 'Failed to save recipients' });
+        console.error("Upload Error:", error);
+        res.status(500).json({ error: "Failed to save recipients" });
       }
     });
 };
 
-
 // Get all recipient emails
 exports.getAllRecipientEmails = async (req, res) => {
   try {
-    const result = await dynamoDB.scan({
-      TableName: TABLE_NAME,
-      FilterExpression: 'begins_with(PK, :pk)',
-      ExpressionAttributeValues: { ':pk': 'RECIPIENT#' },
-      ProjectionExpression: 'email',
-    }).promise();
+    const result = await dynamoDB
+      .scan({
+        TableName: TABLE_NAME,
+        FilterExpression: "begins_with(PK, :pk)",
+        ExpressionAttributeValues: { ":pk": "RECIPIENT#" },
+        ProjectionExpression: "email",
+      })
+      .promise();
 
-    const emails = result.Items.map(r => r.email);
+    const emails = result.Items.map((r) => r.email);
     res.status(200).json({ emails });
   } catch (error) {
-    console.error('Error fetching recipients:', error);
-    res.status(500).json({ error: 'Failed to fetch recipient emails' });
+    console.error("Error fetching recipients:", error);
+    res.status(500).json({ error: "Failed to fetch recipient emails" });
   }
 };
 
 // Get all recipients
 exports.getRecipients = async (req, res) => {
   try {
-    const result = await dynamoDB.scan({
-      TableName: TABLE_NAME,
-      FilterExpression: 'begins_with(PK, :pk)',
-      ExpressionAttributeValues: { ':pk': 'RECIPIENT#' },
-    }).promise();
+    const result = await dynamoDB
+      .scan({
+        TableName: TABLE_NAME,
+        FilterExpression: "begins_with(PK, :pk)",
+        ExpressionAttributeValues: { ":pk": "RECIPIENT#" },
+      })
+      .promise();
 
     res.status(200).json(result.Items);
   } catch (err) {
@@ -210,27 +214,29 @@ exports.createRecipient = async (req, res) => {
   try {
     const { email, name } = req.body;
     if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-      return res.status(400).json({ error: 'Invalid or missing email' });
+      return res.status(400).json({ error: "Invalid or missing email" });
     }
 
     const item = {
       PK: `RECIPIENT#${email}`,
-      SK: 'PROFILE',
+      SK: "PROFILE",
       email,
-      name: name || '',
+      name: name || "",
       id: uuidv4(),
     };
 
-    await dynamoDB.put({
-      TableName: TABLE_NAME,
-      Item: item,
-      ConditionExpression: 'attribute_not_exists(PK)',
-    }).promise();
+    await dynamoDB
+      .put({
+        TableName: TABLE_NAME,
+        Item: item,
+        ConditionExpression: "attribute_not_exists(PK)",
+      })
+      .promise();
 
     res.status(201).json(item);
   } catch (err) {
-    if (err.code === 'ConditionalCheckFailedException') {
-      res.status(400).json({ error: 'Recipient already exists' });
+    if (err.code === "ConditionalCheckFailedException") {
+      res.status(400).json({ error: "Recipient already exists" });
     } else {
       res.status(400).json({ error: err.message });
     }
@@ -242,17 +248,19 @@ exports.getRecipientById = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = await dynamoDB.scan({
-      TableName: TABLE_NAME,
-      FilterExpression: 'begins_with(PK, :pk) AND id = :id',
-      ExpressionAttributeValues: {
-        ':pk': 'RECIPIENT#',
-        ':id': id,
-      },
-    }).promise();
+    const result = await dynamoDB
+      .scan({
+        TableName: TABLE_NAME,
+        FilterExpression: "begins_with(PK, :pk) AND id = :id",
+        ExpressionAttributeValues: {
+          ":pk": "RECIPIENT#",
+          ":id": id,
+        },
+      })
+      .promise();
 
     if (!result.Items.length) {
-      return res.status(404).json({ error: 'Recipient not found' });
+      return res.status(404).json({ error: "Recipient not found" });
     }
 
     res.json(result.Items[0]);
@@ -268,32 +276,36 @@ exports.updateRecipient = async (req, res) => {
 
   try {
     // Find by scan (assuming you use `id` as attribute, not PK)
-    const result = await dynamoDB.scan({
-      TableName: TABLE_NAME,
-      FilterExpression: 'begins_with(PK, :pk) AND id = :id',
-      ExpressionAttributeValues: {
-        ':pk': 'RECIPIENT#',
-        ':id': id,
-      },
-    }).promise();
+    const result = await dynamoDB
+      .scan({
+        TableName: TABLE_NAME,
+        FilterExpression: "begins_with(PK, :pk) AND id = :id",
+        ExpressionAttributeValues: {
+          ":pk": "RECIPIENT#",
+          ":id": id,
+        },
+      })
+      .promise();
 
     if (!result.Items.length) {
-      return res.status(404).json({ error: 'Recipient not found' });
+      return res.status(404).json({ error: "Recipient not found" });
     }
 
     const recipient = result.Items[0];
 
     // Update
-    await dynamoDB.update({
-      TableName: TABLE_NAME,
-      Key: { PK: recipient.PK, SK: 'PROFILE' },
-      UpdateExpression: 'SET #name = :name',
-      ExpressionAttributeNames: { '#name': 'name' },
-      ExpressionAttributeValues: { ':name': name },
-      ReturnValues: 'ALL_NEW',
-    }).promise();
+    await dynamoDB
+      .update({
+        TableName: TABLE_NAME,
+        Key: { PK: recipient.PK, SK: "PROFILE" },
+        UpdateExpression: "SET #name = :name",
+        ExpressionAttributeNames: { "#name": "name" },
+        ExpressionAttributeValues: { ":name": name },
+        ReturnValues: "ALL_NEW",
+      })
+      .promise();
 
-    res.json({ message: 'Recipient updated' });
+    res.json({ message: "Recipient updated" });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -304,27 +316,31 @@ exports.deleteRecipient = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = await dynamoDB.scan({
-      TableName: TABLE_NAME,
-      FilterExpression: 'begins_with(PK, :pk) AND id = :id',
-      ExpressionAttributeValues: {
-        ':pk': 'RECIPIENT#',
-        ':id': id,
-      },
-    }).promise();
+    const result = await dynamoDB
+      .scan({
+        TableName: TABLE_NAME,
+        FilterExpression: "begins_with(PK, :pk) AND id = :id",
+        ExpressionAttributeValues: {
+          ":pk": "RECIPIENT#",
+          ":id": id,
+        },
+      })
+      .promise();
 
     if (!result.Items.length) {
-      return res.status(404).json({ error: 'Recipient not found' });
+      return res.status(404).json({ error: "Recipient not found" });
     }
 
     const recipient = result.Items[0];
 
-    await dynamoDB.delete({
-      TableName: TABLE_NAME,
-      Key: { PK: recipient.PK, SK: 'PROFILE' },
-    }).promise();
+    await dynamoDB
+      .delete({
+        TableName: TABLE_NAME,
+        Key: { PK: recipient.PK, SK: "PROFILE" },
+      })
+      .promise();
 
-    res.json({ message: 'Recipient deleted' });
+    res.json({ message: "Recipient deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
