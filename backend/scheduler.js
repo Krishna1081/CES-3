@@ -149,29 +149,28 @@
 //   }
 // });
 
-const cron = require('node-cron');
-const nodemailer = require('nodemailer');
-const { DateTime } = require('luxon');
-const { dynamoDB } = require('./db');
-const { sendCampaignById } = require('./controllers/campaignController'); // 👈 Adjust path if needed
+const cron = require("node-cron");
+const nodemailer = require("nodemailer");
+const { DateTime } = require("luxon");
+const { dynamoDB } = require("./db");
+const { sendCampaignById } = require("./controllers/campaignController"); // 👈 Adjust path if needed
 
-
-const TABLE_NAME = 'MailSpace'; // Replace with your actual DynamoDB table name
+const TABLE_NAME = "MailSpace"; // Replace with your actual DynamoDB table name
 
 // Scheduled Campaign Sender - Every minute
-cron.schedule('* * * * *', async () => {
+cron.schedule("* * * * *", async () => {
   console.log(`[${new Date().toISOString()}] 🔍 Checking for due campaigns`);
 
   const scanParams = {
     TableName: TABLE_NAME,
-    FilterExpression: '#type = :type AND #status = :status',
+    FilterExpression: "#type = :type AND #status = :status",
     ExpressionAttributeNames: {
-      '#type': 'entityType',
-      '#status': 'status',
+      "#type": "entityType",
+      "#status": "status",
     },
     ExpressionAttributeValues: {
-      ':type': 'campaign',
-      ':status': 'scheduled',
+      ":type": "campaign",
+      ":status": "scheduled",
     },
   };
 
@@ -179,46 +178,55 @@ cron.schedule('* * * * *', async () => {
     const { Items = [] } = await dynamoDB.scan(scanParams).promise();
 
     for (const campaign of Items) {
-      const { id, sendAt, timezone = 'UTC' } = campaign;
+      console.log("Campaign: ", campaign);
+      const { id, sendAt, timezone = "UTC" } = campaign;
       const now = DateTime.now().setZone(timezone);
       const sendTime = DateTime.fromISO(sendAt, { zone: timezone });
 
+      console.log();
       if (now >= sendTime) {
         console.log(`⏰ Triggering campaign ID ${id}`);
-        await sendCampaignById(id);
+        try {
+          await sendCampaignById(id);
+          console.log("Sending Campaign....");
+        } catch (e) {
+          console.log(e);
+        }
 
         // ✅ Mark campaign as sent
-        await dynamoDB.update({
-          TableName: TABLE_NAME,
-          Key: { PK: `CAMPAIGN#${id}`, SK: 'METADATA' },
-          UpdateExpression: 'SET #status = :sent, lastSentAt = :now',
-          ExpressionAttributeNames: {
-            '#status': 'status',
-          },
-          ExpressionAttributeValues: {
-            ':sent': 'sent',
-            ':now': new Date().toISOString(),
-          },
-        }).promise();
+        await dynamoDB
+          .update({
+            TableName: TABLE_NAME,
+            Key: { PK: `CAMPAIGN#${id}`, SK: "METADATA" },
+            UpdateExpression: "SET #status = :sent, lastSentAt = :now",
+            ExpressionAttributeNames: {
+              "#status": "status",
+            },
+            ExpressionAttributeValues: {
+              ":sent": "sent",
+              ":now": new Date().toISOString(),
+            },
+          })
+          .promise();
       }
     }
   } catch (err) {
-    console.error('❌ Error checking campaigns:', err.message);
+    console.error("❌ Error checking campaigns:", err.message);
   }
 });
 
 // SMTP Quota Reset - Daily at midnight
-cron.schedule('0 0 * * *', async () => {
+cron.schedule("0 0 * * *", async () => {
   console.log(`[${new Date().toISOString()}] 🔄 Resetting SMTP quotas`);
 
   const smtpScanParams = {
     TableName: TABLE_NAME,
-    FilterExpression: '#type = :smtpType',
+    FilterExpression: "#type = :smtpType",
     ExpressionAttributeNames: {
-      '#type': 'type',
+      "#type": "type",
     },
     ExpressionAttributeValues: {
-      ':smtpType': 'SmtpConfig',
+      ":smtpType": "SmtpConfig",
     },
   };
 
@@ -226,15 +234,17 @@ cron.schedule('0 0 * * *', async () => {
     const { Items: smtps = [] } = await dynamoDB.scan(smtpScanParams).promise();
 
     for (const smtp of smtps) {
-      await dynamoDB.update({
-        TableName: TABLE_NAME,
-        Key: { PK: `SMTP#${smtp.id}`, SK: 'META' },
-        UpdateExpression: 'SET sentCount = :zero, lastReset = :now',
-        ExpressionAttributeValues: {
-          ':zero': 0,
-          ':now': new Date().toISOString(),
-        },
-      }).promise();
+      await dynamoDB
+        .update({
+          TableName: TABLE_NAME,
+          Key: { PK: `SMTP#${smtp.id}`, SK: "META" },
+          UpdateExpression: "SET sentCount = :zero, lastReset = :now",
+          ExpressionAttributeValues: {
+            ":zero": 0,
+            ":now": new Date().toISOString(),
+          },
+        })
+        .promise();
       console.log(`✅ Reset quota for SMTP ${smtp.id}`);
     }
   } catch (error) {

@@ -4,7 +4,11 @@ import { MdAlternateEmail, MdCampaign } from "react-icons/md";
 import { IoCloudUploadOutline } from "react-icons/io5";
 import { TiContacts } from "react-icons/ti";
 import { FaInbox } from "react-icons/fa";
+import { MdDns } from "react-icons/md";
+import { MdOutlineUnsubscribe } from "react-icons/md";
 import { NavLink } from 'react-router-dom'; // Import for routing
+
+
 
 const SidebarContext = createContext()
 const Sidebar = () => {
@@ -25,6 +29,8 @@ const Sidebar = () => {
                 <SidebarItem icon={<IoCloudUploadOutline size={20} />} text="Upload" to="/upload-recipients" />
                 <SidebarItem icon={<TiContacts size={20} />} text="Recipients" to="/recipients" />
                 <SidebarItem icon={<FaInbox size={20} />} text="Unibox" to="/unibox" />
+                <SidebarItem icon={<MdDns  size={20} />} text="AuthScan" to="/dns-check" />
+                <SidebarItem icon={<MdOutlineUnsubscribe size={20} />} text="Unsubscription" to="/suppression-list" />
             </ul>
 
         </SidebarContext.Provider>

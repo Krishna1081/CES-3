@@ -7,9 +7,11 @@ import CampaignPage from './components/campaign/CampaignManager';
 import SmtpManager from './components/smtp/SmtpManager';
 import RecipientUpload from './components/recipient/RecipientUpload';
 import RecipientManager from './components/recipient/RecipientManager';
+import DnsCheck from './components/dns/dnsCheck';
 import Unibox from './components/Unibox';
 
 import './styles/App.css';
+import SuppressionList from './components/suppression/SuppressionList';
 
 const App = () => {
   return (
@@ -23,6 +25,8 @@ const App = () => {
             <Route path="/upload-recipients" element={<RecipientUpload />} />
             <Route path="/recipients" element={<RecipientManager />} />
             <Route path="/unibox" element={<Unibox />} />
+            <Route path="/dns-check" element={<DnsCheck />} />
+            <Route path="/suppression-list" element={<SuppressionList />} />
           </Routes>
         </div>
       </div>

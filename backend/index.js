@@ -1,43 +1,3 @@
-// const express = require('express');
-// const cors = require('cors');
-// const connectDB = require('./connectDB'); // DynamoDB via Dynamoose
-// const app = express();
-// const port = 5000;
-
-// // Routes
-// const usersRouter = require('./routes/usersRouter');
-// const sendEmailRouter = require('./routes/sendEmailRouter');
-// const campaignRoutes = require('./routes/campaignRoutes');
-// const smtpRoutes = require('./routes/smtpRoutes');
-// const recipientRoutes = require('./routes/recipientRoutes');
-// const uniboxRoutes = require('./routes/uniboxRoutes');
-
-// // Scheduler
-// require('./scheduler'); // Start the cron job
-
-// // Middleware
-// app.use(cors());
-// app.use(express.json());
-
-// // Connect to DynamoDB first
-// (async () => {
-//   await connectDB();
-
-//   // Routes after DB is ready
-//   app.use(usersRouter);
-//   app.use(sendEmailRouter);
-//   app.use(campaignRoutes);
-//   app.use(smtpRoutes);
-//   app.use(recipientRoutes);
-//   app.use(uniboxRoutes);
-
-//   // Start server
-//   app.listen(port, () => {
-//     console.log(`Server is running on port ${port}`);
-//   });
-// })();
-
-// server.js
 require('dotenv').config();
 const express = require('express');
 const AWS = require('aws-sdk');
@@ -70,13 +30,16 @@ const smtpRoutes = require('./routes/smtpRoutes');
 const campaignRoutes = require('./routes/campaignRoutes');
 const recipientRoutes = require('./routes/recipientRoutes');
 const uniboxRoutes = require('./routes/uniboxRoutes');
-
+const dnsRoutes = require('./routes/dnsRoutes');
+const suppressionRoutes = require('./routes/suppressionRoutes');
 
 // use routes
 app.use(smtpRoutes);
 app.use(recipientRoutes);
 app.use(uniboxRoutes);
 app.use(campaignRoutes);
+app.use(dnsRoutes);
+app.use(suppressionRoutes);
 
 // Start server
 app.listen(port, () => {
